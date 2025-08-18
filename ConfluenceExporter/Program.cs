@@ -66,13 +66,20 @@ internal class Program
         rootCommand.Add(exportAllCommand);
         rootCommand.Add(listSpacesCommand);
 
-        // TODO: Add command handlers when System.CommandLine API is stable
+        listSpacesCommand.SetHandler(async (context) =>
+        {
+            var baseUrl = context.ParseResult.GetValueForOption<string>(baseUrlOption);
+            var username = context.ParseResult.GetValueForOption<string>(usernameOption);
+            var token = context.ParseResult.GetValueForOption<string>(tokenOption);
 
-
-
-
-
+            var config = new ExportConfiguration { ConfluenceBaseUrl = baseUrl, Username = username, ApiToken = token };
+            
+            await ListSpacesAsync(config);
+        });
+        
         return rootCommand.Invoke(args);
+
+        // TODO: Add command handlers when System.CommandLine API is stable
     }
 
     private static ExportConfiguration CreateConfiguration(string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex)
