@@ -61,52 +61,44 @@ The application uses command-line parameters for configuration. No configuration
 - `--include-attachments`: Download and include attachments (default: `true`)
 - `--create-index`: Create index files (default: `true`)
 - `--verbose`: Enable verbose logging
+- `--include-spaces`: Only export these spaces (space keys) - for `all` command
+- `--exclude-spaces`: Exclude these spaces (space keys) - for `all` command
 
 ## Usage
 
-### Export a Single Page
+**Note:** Command handlers are currently under development. The command structure is defined but not yet fully functional.
 
-Export a specific page and its children:
+### Available Commands
+
+The application defines the following command structure:
+
+- `page <page-id>` - Export a single page and its children
+- `space <space-key>` - Export an entire space  
+- `hierarchy <page-id>` - Export a page hierarchy
+- `all` - Export all accessible spaces
+- `list-spaces` - List all accessible spaces
+
+### Command Examples (In Development)
+
+Once the command handlers are implemented, you will be able to use:
 
 ```bash
+# Export a single page
 dotnet run page <page-id> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
-```
 
-### Export an Entire Space
-
-Export all pages in a space:
-
-```bash
+# Export an entire space
 dotnet run space <space-key> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
-```
 
-### Export Page Hierarchy
-
-Export a page and all its descendants:
-
-```bash
+# Export page hierarchy
 dotnet run hierarchy <root-page-id> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
-```
 
-### Export All Spaces
-
-Export all accessible spaces:
-
-```bash
+# Export all spaces
 dotnet run all --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
-```
 
-Filter spaces with include/exclude options:
-
-```bash
+# Filter spaces with include/exclude options
 dotnet run all --include-spaces SPACE1 SPACE2 --exclude-spaces TEMP ARCHIVED --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
-```
 
-### List Available Spaces
-
-List all spaces you have access to:
-
-```bash
+# List available spaces
 dotnet run list-spaces --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
 ```
 
