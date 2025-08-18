@@ -14,7 +14,10 @@
       "Bash(dotnet add /Users/mishochu/Source/mishaelochu/confluence-exporter/ConfluenceExporter/ConfluenceExporter.csproj package System.Text.Json)",
       "Bash(dotnet add /Users/mishochu/Source/mishaelochu/confluence-exporter/ConfluenceExporter/ConfluenceExporter.csproj package Polly.Extensions.Http)",
       "Bash(dotnet build /Users/mishochu/Source/mishaelochu/confluence-exporter/ConfluenceExporter/ConfluenceExporter.csproj)",
-      "Bash(dotnet add:*)"
+      "Bash(dotnet add:*)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet build:*)",
+      "Bash(dotnet restore:*)"
     ],
     "deny": [],
     "ask": []

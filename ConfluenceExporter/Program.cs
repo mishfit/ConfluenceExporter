@@ -13,140 +13,66 @@ internal class Program
     {
         var rootCommand = new RootCommand("Confluence Exporter - Export Confluence content to Markdown");
 
-        var baseUrlOption = new Option<string>(
-            name: "--base-url",
-            description: "Confluence base URL (e.g., https://company.atlassian.net)")
-        { IsRequired = true };
+        var baseUrlOption = new Option<string>("--base-url", "Confluence base URL (e.g., https://company.atlassian.net)");
+        var usernameOption = new Option<string>("--username", "Confluence username/email");
+        var tokenOption = new Option<string>("--token", "Confluence API token");
+        var outputOption = new Option<string>("--output", "Output directory");
+        var formatOption = new Option<ExportFormat>("--format", "Export format");
+        var concurrentOption = new Option<int>("--concurrent", "Maximum concurrent requests");
+        var delayOption = new Option<int>("--delay", "Request delay in milliseconds");
+        var preserveHierarchyOption = new Option<bool>("--preserve-hierarchy", "Preserve page hierarchy in folder structure");
+        var includeImagesOption = new Option<bool>("--include-images", "Download and include images");
+        var includeAttachmentsOption = new Option<bool>("--include-attachments", "Download and include attachments");
+        var createIndexOption = new Option<bool>("--create-index", "Create index files");
+        var verboseOption = new Option<bool>("--verbose", "Enable verbose logging");
 
-        var usernameOption = new Option<string>(
-            name: "--username",
-            description: "Confluence username/email")
-        { IsRequired = true };
+        rootCommand.Add(baseUrlOption);
+        rootCommand.Add(usernameOption);
+        rootCommand.Add(tokenOption);
+        rootCommand.Add(outputOption);
+        rootCommand.Add(formatOption);
+        rootCommand.Add(concurrentOption);
+        rootCommand.Add(delayOption);
+        rootCommand.Add(preserveHierarchyOption);
+        rootCommand.Add(includeImagesOption);
+        rootCommand.Add(includeAttachmentsOption);
+        rootCommand.Add(createIndexOption);
+        rootCommand.Add(verboseOption);
 
-        var tokenOption = new Option<string>(
-            name: "--token",
-            description: "Confluence API token")
-        { IsRequired = true };
+        var pageIdArgument = new Argument<string>("page-id");
+        var spaceKeyArgument = new Argument<string>("space-key");
+        var rootPageIdArgument = new Argument<string>("page-id");
+        var includeSpacesOption = new Option<string[]>("--include-spaces", "Only export these spaces (space keys)");
+        var excludeSpacesOption = new Option<string[]>("--exclude-spaces", "Exclude these spaces (space keys)");
 
-        var outputOption = new Option<string>(
-            name: "--output",
-            description: "Output directory",
-            getDefaultValue: () => "output");
+        var exportPageCommand = new Command("page", "Export a single page and its children");
+        exportPageCommand.Add(pageIdArgument);
 
-        var formatOption = new Option<ExportFormat>(
-            name: "--format",
-            description: "Export format",
-            getDefaultValue: () => ExportFormat.Markdown);
+        var exportSpaceCommand = new Command("space", "Export an entire space");
+        exportSpaceCommand.Add(spaceKeyArgument);
 
-        var concurrentOption = new Option<int>(
-            name: "--concurrent",
-            description: "Maximum concurrent requests",
-            getDefaultValue: () => 5);
+        var exportHierarchyCommand = new Command("hierarchy", "Export a page hierarchy");
+        exportHierarchyCommand.Add(rootPageIdArgument);
 
-        var delayOption = new Option<int>(
-            name: "--delay",
-            description: "Request delay in milliseconds",
-            getDefaultValue: () => 100);
-
-        var preserveHierarchyOption = new Option<bool>(
-            name: "--preserve-hierarchy",
-            description: "Preserve page hierarchy in folder structure",
-            getDefaultValue: () => true);
-
-        var includeImagesOption = new Option<bool>(
-            name: "--include-images",
-            description: "Download and include images",
-            getDefaultValue: () => true);
-
-        var includeAttachmentsOption = new Option<bool>(
-            name: "--include-attachments",
-            description: "Download and include attachments",
-            getDefaultValue: () => true);
-
-        var createIndexOption = new Option<bool>(
-            name: "--create-index",
-            description: "Create index files",
-            getDefaultValue: () => true);
-
-        var verboseOption = new Option<bool>(
-            name: "--verbose",
-            description: "Enable verbose logging");
-
-        rootCommand.AddGlobalOption(baseUrlOption);
-        rootCommand.AddGlobalOption(usernameOption);
-        rootCommand.AddGlobalOption(tokenOption);
-        rootCommand.AddGlobalOption(outputOption);
-        rootCommand.AddGlobalOption(formatOption);
-        rootCommand.AddGlobalOption(concurrentOption);
-        rootCommand.AddGlobalOption(delayOption);
-        rootCommand.AddGlobalOption(preserveHierarchyOption);
-        rootCommand.AddGlobalOption(includeImagesOption);
-        rootCommand.AddGlobalOption(includeAttachmentsOption);
-        rootCommand.AddGlobalOption(createIndexOption);
-        rootCommand.AddGlobalOption(verboseOption);
-
-        var exportPageCommand = new Command("page", "Export a single page and its children")
-        {
-            new Argument<string>("page-id", "Confluence page ID to export")
-        };
-
-        var exportSpaceCommand = new Command("space", "Export an entire space")
-        {
-            new Argument<string>("space-key", "Confluence space key to export")
-        };
-
-        var exportHierarchyCommand = new Command("hierarchy", "Export a page hierarchy")
-        {
-            new Argument<string>("page-id", "Root page ID for hierarchy export")
-        };
-
-        var exportAllCommand = new Command("all", "Export all accessible spaces")
-        {
-            new Option<string[]>("--include-spaces", "Only export these spaces (space keys)") { AllowMultipleArgumentsPerToken = true },
-            new Option<string[]>("--exclude-spaces", "Exclude these spaces (space keys)") { AllowMultipleArgumentsPerToken = true }
-        };
+        var exportAllCommand = new Command("all", "Export all accessible spaces");
+        exportAllCommand.Add(includeSpacesOption);
+        exportAllCommand.Add(excludeSpacesOption);
 
         var listSpacesCommand = new Command("list-spaces", "List all accessible spaces");
 
-        rootCommand.AddCommand(exportPageCommand);
-        rootCommand.AddCommand(exportSpaceCommand);
-        rootCommand.AddCommand(exportHierarchyCommand);
-        rootCommand.AddCommand(exportAllCommand);
-        rootCommand.AddCommand(listSpacesCommand);
+        rootCommand.Add(exportPageCommand);
+        rootCommand.Add(exportSpaceCommand);
+        rootCommand.Add(exportHierarchyCommand);
+        rootCommand.Add(exportAllCommand);
+        rootCommand.Add(listSpacesCommand);
 
-        exportPageCommand.SetHandler(async (string pageId, string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex) =>
-        {
-            var config = CreateConfiguration(baseUrl, username, token, output, format, concurrent, delay, preserveHierarchy, includeImages, includeAttachments, createIndex);
-            await ExecuteExportAsync(config, ExportScope.Page, pageId);
-        }, exportPageCommand.Arguments[0], baseUrlOption, usernameOption, tokenOption, outputOption, formatOption, concurrentOption, delayOption, preserveHierarchyOption, includeImagesOption, includeAttachmentsOption, createIndexOption);
+        // TODO: Add command handlers when System.CommandLine API is stable
 
-        exportSpaceCommand.SetHandler(async (string spaceKey, string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex) =>
-        {
-            var config = CreateConfiguration(baseUrl, username, token, output, format, concurrent, delay, preserveHierarchy, includeImages, includeAttachments, createIndex);
-            await ExecuteExportAsync(config, ExportScope.Space, spaceKey);
-        }, exportSpaceCommand.Arguments[0], baseUrlOption, usernameOption, tokenOption, outputOption, formatOption, concurrentOption, delayOption, preserveHierarchyOption, includeImagesOption, includeAttachmentsOption, createIndexOption);
 
-        exportHierarchyCommand.SetHandler(async (string pageId, string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex) =>
-        {
-            var config = CreateConfiguration(baseUrl, username, token, output, format, concurrent, delay, preserveHierarchy, includeImages, includeAttachments, createIndex);
-            await ExecuteExportAsync(config, ExportScope.Hierarchy, pageId);
-        }, exportHierarchyCommand.Arguments[0], baseUrlOption, usernameOption, tokenOption, outputOption, formatOption, concurrentOption, delayOption, preserveHierarchyOption, includeImagesOption, includeAttachmentsOption, createIndexOption);
 
-        exportAllCommand.SetHandler(async (string[] includeSpaces, string[] excludeSpaces, string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex) =>
-        {
-            var config = CreateConfiguration(baseUrl, username, token, output, format, concurrent, delay, preserveHierarchy, includeImages, includeAttachments, createIndex);
-            config.IncludedSpaces = includeSpaces ?? Array.Empty<string>();
-            config.ExcludedSpaces = excludeSpaces ?? Array.Empty<string>();
-            await ExecuteExportAsync(config, ExportScope.AllSpaces, null);
-        }, exportAllCommand.Options[0], exportAllCommand.Options[1], baseUrlOption, usernameOption, tokenOption, outputOption, formatOption, concurrentOption, delayOption, preserveHierarchyOption, includeImagesOption, includeAttachmentsOption, createIndexOption);
 
-        listSpacesCommand.SetHandler(async (string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex) =>
-        {
-            var config = CreateConfiguration(baseUrl, username, token, output, format, concurrent, delay, preserveHierarchy, includeImages, includeAttachments, createIndex);
-            await ListSpacesAsync(config);
-        }, baseUrlOption, usernameOption, tokenOption, outputOption, formatOption, concurrentOption, delayOption, preserveHierarchyOption, includeImagesOption, includeAttachmentsOption, createIndexOption);
 
-        return await rootCommand.InvokeAsync(args);
+        return rootCommand.Invoke(args);
     }
 
     private static ExportConfiguration CreateConfiguration(string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex)

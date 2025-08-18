@@ -220,7 +220,7 @@ public class MarkdownConverter : IMarkdownConverter
             {
                 var pre = doc.CreateElement("pre");
                 var code = doc.CreateElement("code");
-                code.InnerText = codeContent.InnerText;
+                code.InnerHtml = codeContent.InnerText;
                 pre.AppendChild(code);
                 
                 block.ParentNode.ReplaceChild(pre, block);
@@ -284,7 +284,7 @@ public class MarkdownConverter : IMarkdownConverter
             
             var badge = doc.CreateElement("span");
             badge.SetAttributeValue("class", $"badge badge-{color}");
-            badge.InnerText = text;
+            badge.InnerHtml = text;
             
             status.ParentNode.ReplaceChild(badge, status);
         }
