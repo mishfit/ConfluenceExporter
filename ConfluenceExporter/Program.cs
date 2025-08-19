@@ -1,4 +1,4 @@
-using System.CommandLine;
+using Fclp;
 using ConfluenceExporter.Configuration;
 using ConfluenceExporter.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,98 +11,182 @@ internal class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        var rootCommand = new RootCommand("Confluence Exporter - Export Confluence content to Markdown");
+        var parser = new FluentCommandLineParser<CommandLineArgs>();
 
-        var baseUrlOption = new Option<string>("--base-url", "Confluence base URL (e.g., https://company.atlassian.net)");
-        var usernameOption = new Option<string>("--username", "Confluence username/email");
-        var tokenOption = new Option<string>("--token", "Confluence API token");
-        var outputOption = new Option<string>("--output", "Output directory");
-        var formatOption = new Option<ExportFormat>("--format", "Export format");
-        var concurrentOption = new Option<int>("--concurrent", "Maximum concurrent requests");
-        var delayOption = new Option<int>("--delay", "Request delay in milliseconds");
-        var preserveHierarchyOption = new Option<bool>("--preserve-hierarchy", "Preserve page hierarchy in folder structure");
-        var includeImagesOption = new Option<bool>("--include-images", "Download and include images");
-        var includeAttachmentsOption = new Option<bool>("--include-attachments", "Download and include attachments");
-        var createIndexOption = new Option<bool>("--create-index", "Create index files");
-        var verboseOption = new Option<bool>("--verbose", "Enable verbose logging");
+        parser.Setup(arg => arg.BaseUrl)
+            .As('u', "base-url")
+            .WithDescription("Confluence base URL (e.g., https://company.atlassian.net)")
+            .Required();
 
-        rootCommand.Add(baseUrlOption);
-        rootCommand.Add(usernameOption);
-        rootCommand.Add(tokenOption);
-        rootCommand.Add(outputOption);
-        rootCommand.Add(formatOption);
-        rootCommand.Add(concurrentOption);
-        rootCommand.Add(delayOption);
-        rootCommand.Add(preserveHierarchyOption);
-        rootCommand.Add(includeImagesOption);
-        rootCommand.Add(includeAttachmentsOption);
-        rootCommand.Add(createIndexOption);
-        rootCommand.Add(verboseOption);
+        parser.Setup(arg => arg.Username)
+            .As('n', "username")
+            .WithDescription("Confluence username/email")
+            .Required();
 
-        var pageIdArgument = new Argument<string>("page-id");
-        var spaceKeyArgument = new Argument<string>("space-key");
-        var rootPageIdArgument = new Argument<string>("page-id");
-        var includeSpacesOption = new Option<string[]>("--include-spaces", "Only export these spaces (space keys)");
-        var excludeSpacesOption = new Option<string[]>("--exclude-spaces", "Exclude these spaces (space keys)");
+        parser.Setup(arg => arg.Token)
+            .As('t', "token")
+            .WithDescription("Confluence API token")
+            .Required();
 
-        var exportPageCommand = new Command("page", "Export a single page and its children");
-        exportPageCommand.Add(pageIdArgument);
+        parser.Setup(arg => arg.Output)
+            .As('o', "output")
+            .WithDescription("Output directory")
+            .SetDefault("output");
 
-        var exportSpaceCommand = new Command("space", "Export an entire space");
-        exportSpaceCommand.Add(spaceKeyArgument);
+        parser.Setup(arg => arg.Format)
+            .As('f', "format")
+            .WithDescription("Export format (Markdown, Html, Both)")
+            .SetDefault(ExportFormat.Markdown);
 
-        var exportHierarchyCommand = new Command("hierarchy", "Export a page hierarchy");
-        exportHierarchyCommand.Add(rootPageIdArgument);
+        parser.Setup(arg => arg.Concurrent)
+            .As('c', "concurrent")
+            .WithDescription("Maximum concurrent requests")
+            .SetDefault(5);
 
-        var exportAllCommand = new Command("all", "Export all accessible spaces");
-        exportAllCommand.Add(includeSpacesOption);
-        exportAllCommand.Add(excludeSpacesOption);
+        parser.Setup(arg => arg.Delay)
+            .As('d', "delay")
+            .WithDescription("Request delay in milliseconds")
+            .SetDefault(100);
 
-        var listSpacesCommand = new Command("list-spaces", "List all accessible spaces");
+        parser.Setup(arg => arg.PreserveHierarchy)
+            .As("preserve-hierarchy")
+            .WithDescription("Preserve page hierarchy in folder structure")
+            .SetDefault(true);
 
-        rootCommand.Add(exportPageCommand);
-        rootCommand.Add(exportSpaceCommand);
-        rootCommand.Add(exportHierarchyCommand);
-        rootCommand.Add(exportAllCommand);
-        rootCommand.Add(listSpacesCommand);
+        parser.Setup(arg => arg.IncludeImages)
+            .As("include-images")
+            .WithDescription("Download and include images")
+            .SetDefault(true);
 
-        listSpacesCommand.SetHandler(async (context) =>
+        parser.Setup(arg => arg.IncludeAttachments)
+            .As("include-attachments")
+            .WithDescription("Download and include attachments")
+            .SetDefault(true);
+
+        parser.Setup(arg => arg.CreateIndex)
+            .As("create-index")
+            .WithDescription("Create index files")
+            .SetDefault(true);
+
+        parser.Setup(arg => arg.Verbose)
+            .As('v', "verbose")
+            .WithDescription("Enable verbose logging")
+            .SetDefault(false);
+
+        parser.Setup(arg => arg.Command)
+            .As("command")
+            .WithDescription("Command to execute (page, space, hierarchy, all, list-spaces)")
+            .Required();
+
+        parser.Setup(arg => arg.Target)
+            .As("target")
+            .WithDescription("Target ID (page ID or space key)");
+
+        parser.Setup(arg => arg.IncludeSpaces)
+            .As("include-spaces")
+            .WithDescription("Only export these spaces (comma-separated space keys)");
+
+        parser.Setup(arg => arg.ExcludeSpaces)
+            .As("exclude-spaces")
+            .WithDescription("Exclude these spaces (comma-separated space keys)");
+
+        parser.SetupHelp("?", "help")
+            .WithHeader("Confluence Exporter - Export Confluence content to Markdown")
+            .Callback(text => Console.WriteLine(text));
+
+        var result = parser.Parse(args);
+
+        if (result.HasErrors)
         {
-            var baseUrl = context.ParseResult.GetValueForOption<string>(baseUrlOption);
-            var username = context.ParseResult.GetValueForOption<string>(usernameOption);
-            var token = context.ParseResult.GetValueForOption<string>(tokenOption);
+            Console.WriteLine("Error parsing arguments:");
+            Console.WriteLine(result.ErrorText);
+            return 1;
+        }
 
-            var config = new ExportConfiguration { ConfluenceBaseUrl = baseUrl, Username = username, ApiToken = token };
-            
-            await ListSpacesAsync(config);
-        });
+        if (result.HelpCalled)
+        {
+            return 0;
+        }
+
+        var commandArgs = parser.Object;
+        var config = CreateConfiguration(commandArgs);
         
-        return rootCommand.Invoke(args);
+        var command = commandArgs.Command?.ToLowerInvariant();
+        
+        switch (command)
+        {
+            case "list-spaces":
+                await ListSpacesAsync(config, commandArgs.Verbose);
+                break;
+            case "page":
+                if (string.IsNullOrEmpty(commandArgs.Target))
+                {
+                    Console.WriteLine("Error: page command requires --target parameter with page ID");
+                    return 1;
+                }
+                await ExecuteExportAsync(config, ExportScope.Page, commandArgs.Target, commandArgs.Verbose);
+                break;
+            case "space":
+                if (string.IsNullOrEmpty(commandArgs.Target))
+                {
+                    Console.WriteLine("Error: space command requires --target parameter with space key");
+                    return 1;
+                }
+                await ExecuteExportAsync(config, ExportScope.Space, commandArgs.Target, commandArgs.Verbose);
+                break;
+            case "hierarchy":
+                if (string.IsNullOrEmpty(commandArgs.Target))
+                {
+                    Console.WriteLine("Error: hierarchy command requires --target parameter with page ID");
+                    return 1;
+                }
+                await ExecuteExportAsync(config, ExportScope.Hierarchy, commandArgs.Target, commandArgs.Verbose);
+                break;
+            case "all":
+                await ExecuteExportAsync(config, ExportScope.AllSpaces, null, commandArgs.Verbose);
+                break;
+            default:
+                Console.WriteLine($"Error: Unknown command '{command}'. Use --help for available commands.");
+                return 1;
+        }
 
-        // TODO: Add command handlers when System.CommandLine API is stable
+        return 0;
     }
 
-    private static ExportConfiguration CreateConfiguration(string baseUrl, string username, string token, string output, ExportFormat format, int concurrent, int delay, bool preserveHierarchy, bool includeImages, bool includeAttachments, bool createIndex)
+    private static ExportConfiguration CreateConfiguration(CommandLineArgs args)
     {
         return new ExportConfiguration
         {
-            ConfluenceBaseUrl = baseUrl.TrimEnd('/'),
-            Username = username,
-            ApiToken = token,
-            OutputDirectory = output,
-            Format = format,
-            MaxConcurrentRequests = concurrent,
-            RequestDelayMs = delay,
-            PreserveHierarchy = preserveHierarchy,
-            IncludeImages = includeImages,
-            IncludeAttachments = includeAttachments,
-            CreateIndexFile = createIndex
+            ConfluenceBaseUrl = args.BaseUrl?.TrimEnd('/') ?? string.Empty,
+            Username = args.Username ?? string.Empty,
+            ApiToken = args.Token ?? string.Empty,
+            OutputDirectory = args.Output ?? "output",
+            Format = args.Format,
+            MaxConcurrentRequests = args.Concurrent,
+            RequestDelayMs = args.Delay,
+            PreserveHierarchy = args.PreserveHierarchy,
+            IncludeImages = args.IncludeImages,
+            IncludeAttachments = args.IncludeAttachments,
+            CreateIndexFile = args.CreateIndex,
+            IncludedSpaces = ParseSpaceList(args.IncludeSpaces),
+            ExcludedSpaces = ParseSpaceList(args.ExcludeSpaces)
         };
     }
 
-    private static async Task ExecuteExportAsync(ExportConfiguration config, ExportScope scope, string? target)
+    private static string[] ParseSpaceList(string? spaceList)
     {
-        var host = CreateHost(config);
+        if (string.IsNullOrWhiteSpace(spaceList))
+            return Array.Empty<string>();
+        
+        return spaceList.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                       .Select(s => s.Trim())
+                       .Where(s => !string.IsNullOrEmpty(s))
+                       .ToArray();
+    }
+
+    private static async Task ExecuteExportAsync(ExportConfiguration config, ExportScope scope, string? target, bool isVerbose = false)
+    {
+        var host = CreateHost(config, isVerbose);
         
         using var serviceScope = host.Services.CreateScope();
         var logger = serviceScope.ServiceProvider.GetRequiredService<ILogger<Program>>();
@@ -170,9 +254,9 @@ internal class Program
         }
     }
 
-    private static async Task ListSpacesAsync(ExportConfiguration config)
+    private static async Task ListSpacesAsync(ExportConfiguration config, bool isVerbose = false)
     {
-        var host = CreateHost(config);
+        var host = CreateHost(config, isVerbose);
         
         using var serviceScope = host.Services.CreateScope();
         var logger = serviceScope.ServiceProvider.GetRequiredService<ILogger<Program>>();
@@ -220,10 +304,8 @@ internal class Program
         await metricsService.SendUsageMetricsAsync(metrics.InstallationId, metrics);
     }
 
-    private static IHost CreateHost(ExportConfiguration config)
+    private static IHost CreateHost(ExportConfiguration config, bool isVerbose = false)
     {
-        var isVerbose = Environment.GetCommandLineArgs().Contains("--verbose");
-
         return Host.CreateDefaultBuilder()
             .ConfigureLogging(builder =>
             {
@@ -241,4 +323,24 @@ internal class Program
             })
             .Build();
     }
+}
+
+public class CommandLineArgs
+{
+    public string? BaseUrl { get; set; }
+    public string? Username { get; set; }
+    public string? Token { get; set; }
+    public string? Output { get; set; }
+    public ExportFormat Format { get; set; } = ExportFormat.Markdown;
+    public int Concurrent { get; set; } = 5;
+    public int Delay { get; set; } = 100;
+    public bool PreserveHierarchy { get; set; } = true;
+    public bool IncludeImages { get; set; } = true;
+    public bool IncludeAttachments { get; set; } = true;
+    public bool CreateIndex { get; set; } = true;
+    public bool Verbose { get; set; } = false;
+    public string? Command { get; set; }
+    public string? Target { get; set; }
+    public string? IncludeSpaces { get; set; }
+    public string? ExcludeSpaces { get; set; }
 }
