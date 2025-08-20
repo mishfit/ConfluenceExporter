@@ -46,60 +46,83 @@ The application uses command-line parameters for configuration. No configuration
 
 ### Required Parameters
 
-- `--base-url`: Your Confluence base URL (e.g., `https://company.atlassian.net`)
-- `--username`: Your Confluence username or email
-- `--token`: Your Confluence API token
+- `--command` - The operation to perform (page, space, hierarchy, all, list-spaces)
+- `--base-url` or `-u` - Your Confluence base URL (e.g., `https://company.atlassian.net`)
+- `--username` or `-n` - Your Confluence username or email
+- `--token` or `-t` - Your Confluence API token
+- `--target` - Target ID (page ID or space key) - required for `page`, `space`, and `hierarchy` commands
 
 ### Optional Parameters
 
-- `--output`: Output directory (default: `output`)
-- `--format`: Export format - `Markdown`, `Html`, or `Both` (default: `Markdown`)
-- `--concurrent`: Maximum concurrent requests (default: `5`)
-- `--delay`: Request delay in milliseconds (default: `100`)
-- `--preserve-hierarchy`: Preserve page hierarchy in folder structure (default: `true`)
-- `--include-images`: Download and include images (default: `true`)
-- `--include-attachments`: Download and include attachments (default: `true`)
-- `--create-index`: Create index files (default: `true`)
-- `--verbose`: Enable verbose logging
-- `--include-spaces`: Only export these spaces (space keys) - for `all` command
-- `--exclude-spaces`: Exclude these spaces (space keys) - for `all` command
+- `--output` or `-o` - Output directory (default: `output`)
+- `--format` or `-f` - Export format: `Markdown`, `Html`, or `Both` (default: `Markdown`)
+- `--concurrent` or `-c` - Maximum concurrent requests (default: `5`)
+- `--delay` or `-d` - Request delay in milliseconds (default: `100`)
+- `--preserve-hierarchy` - Preserve page hierarchy in folder structure (default: `true`)
+- `--include-images` - Download and include images (default: `true`)
+- `--include-attachments` - Download and include attachments (default: `true`)
+- `--create-index` - Create index files (default: `true`)
+- `--verbose` or `-v` - Enable verbose logging
+- `--include-spaces` - Only export these spaces (comma-separated space keys) - for `all` command
+- `--exclude-spaces` - Exclude these spaces (comma-separated space keys) - for `all` command
+
+### Getting Help
+
+Use the help parameter to see all available options:
+
+```bash
+# Show help information
+dotnet run -- --help
+# or
+dotnet run -- -?
+```
 
 ## Usage
 
-**Note:** Command handlers are currently under development. The command structure is defined but not yet fully functional.
+The application uses FluentCommandLineParser for command-line argument parsing with a flag-based approach.
 
 ### Available Commands
 
-The application defines the following command structure:
+Use the `--command` parameter to specify the operation:
 
-- `page <page-id>` - Export a single page and its children
-- `space <space-key>` - Export an entire space  
-- `hierarchy <page-id>` - Export a page hierarchy
+- `page` - Export a single page and its children (requires `--target` with page ID)
+- `space` - Export an entire space (requires `--target` with space key)  
+- `hierarchy` - Export a page hierarchy (requires `--target` with page ID)
 - `all` - Export all accessible spaces
 - `list-spaces` - List all accessible spaces
 
-### Command Examples (In Development)
-
-Once the command handlers are implemented, you will be able to use:
+### Command Examples
 
 ```bash
 # Export a single page
-dotnet run page <page-id> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+dotnet run -- --command page --target <page-id> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
 
 # Export an entire space
-dotnet run space <space-key> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+dotnet run -- --command space --target <space-key> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
 
 # Export page hierarchy
-dotnet run hierarchy <root-page-id> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+dotnet run -- --command hierarchy --target <root-page-id> --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
 
 # Export all spaces
-dotnet run all --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+dotnet run -- --command all --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
 
-# Filter spaces with include/exclude options
-dotnet run all --include-spaces SPACE1 SPACE2 --exclude-spaces TEMP ARCHIVED --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+# Export all spaces with filtering
+dotnet run -- --command all --include-spaces "SPACE1,SPACE2" --exclude-spaces "TEMP,ARCHIVED" --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
 
 # List available spaces
-dotnet run list-spaces --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+dotnet run -- --command list-spaces --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token"
+
+# Export with additional options
+dotnet run -- --command space --target MYSPACE --base-url "https://company.atlassian.net" --username "user@company.com" --token "your-api-token" --output "./export" --format Both --concurrent 3 --delay 200 --verbose
+```
+
+### Short Form Parameters
+
+FluentCommandLineParser supports both long and short forms for many parameters:
+
+```bash
+# Using short form parameters
+dotnet run -- --command space --target MYSPACE -u "https://company.atlassian.net" -n "user@company.com" -t "your-api-token" -o "./export" -f Markdown -c 3 -d 200 -v
 ```
 
 ## Output Structure

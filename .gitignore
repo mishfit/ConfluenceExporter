@@ -382,3 +382,6 @@ Desktop.ini
 *.iml
 *.ipr
 *.iws
+
+launchSettings.json
+key-*.xml

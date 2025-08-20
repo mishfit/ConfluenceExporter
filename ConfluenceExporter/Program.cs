@@ -4,6 +4,9 @@ using ConfluenceExporter.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Serilog;
+using Serilog.Configuration;
+using Serilog.Events;
 
 namespace ConfluenceExporter;
 
@@ -150,6 +153,7 @@ internal class Program
                 return 1;
         }
 
+        Log.CloseAndFlush();
         return 0;
     }
 
@@ -306,13 +310,23 @@ internal class Program
 
     private static IHost CreateHost(ExportConfiguration config, bool isVerbose = false)
     {
+        // Configure Serilog
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Is(isVerbose ? LogEventLevel.Debug : LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .MinimumLevel.Override("System", LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .WriteTo.Console(
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+            .WriteTo.File(
+                path: "logs/confluence-exporter-.log",
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 7,
+                outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+
         return Host.CreateDefaultBuilder()
-            .ConfigureLogging(builder =>
-            {
-                builder.ClearProviders();
-                builder.AddConsole();
-                builder.SetMinimumLevel(isVerbose ? LogLevel.Debug : LogLevel.Information);
-            })
+            .UseSerilog()
             .ConfigureServices(services =>
             {
                 services.AddSingleton(config);

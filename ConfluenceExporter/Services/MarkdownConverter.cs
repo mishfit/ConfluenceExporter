@@ -66,48 +66,65 @@ public class MarkdownConverter : IMarkdownConverter
 
     private async Task ProcessConfluenceMacrosAsync(HtmlDocument doc, CancellationToken cancellationToken)
     {
-        var macros = doc.DocumentNode.SelectNodes("//ac:structured-macro");
-        if (macros == null) return;
-
-        foreach (var macro in macros)
+        try
         {
-            var macroName = macro.GetAttributeValue("ac:name", "");
-            
-            switch (macroName.ToLowerInvariant())
+            // Use namespace-agnostic XPath to avoid namespace prefix issues
+            var macros = doc.DocumentNode.SelectNodes("//*[local-name()='structured-macro']");
+            if (macros == null) return;
+
+            foreach (var macro in macros)
             {
-                case "code":
-                    ProcessCodeMacro(macro);
-                    break;
-                case "info":
-                case "note":
-                case "warning":
-                case "tip":
-                    ProcessInfoMacro(macro, macroName);
-                    break;
-                case "table-of-contents":
-                case "toc":
-                    ProcessTocMacro(macro);
-                    break;
-                case "children":
-                    ProcessChildrenMacro(macro);
-                    break;
-                case "include":
-                    ProcessIncludeMacro(macro);
-                    break;
-                case "excerpt":
-                    ProcessExcerptMacro(macro);
-                    break;
-                default:
-                    ProcessGenericMacro(macro, macroName);
-                    break;
+                try
+                {
+                    // Try both with and without namespace prefix for attribute
+                    var macroName = macro.GetAttributeValue("ac:name", "") ?? macro.GetAttributeValue("name", "");
+                    
+                    switch (macroName.ToLowerInvariant())
+                    {
+                        case "code":
+                            ProcessCodeMacro(macro);
+                            break;
+                        case "info":
+                        case "note":
+                        case "warning":
+                        case "tip":
+                            ProcessInfoMacro(macro, macroName);
+                            break;
+                        case "table-of-contents":
+                        case "toc":
+                            ProcessTocMacro(macro);
+                            break;
+                        case "children":
+                            ProcessChildrenMacro(macro);
+                            break;
+                        case "include":
+                            ProcessIncludeMacro(macro);
+                            break;
+                        case "excerpt":
+                            ProcessExcerptMacro(macro);
+                            break;
+                        default:
+                            ProcessGenericMacro(macro, macroName);
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to process macro: {MacroName}", macro.GetAttributeValue("ac:name", "") ?? macro.GetAttributeValue("name", "unknown"));
+                    // Continue processing other macros
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to process Confluence macros");
         }
     }
 
     private static void ProcessCodeMacro(HtmlNode macro)
     {
-        var language = macro.SelectSingleNode(".//ac:parameter[@ac:name='language']")?.InnerText ?? "text";
-        var codeBody = macro.SelectSingleNode(".//ac:plain-text-body")?.InnerText ?? "";
+        var language = macro.SelectSingleNode(".//*[local-name()='parameter' and @*[local-name()='name']='language']")?.InnerText ?? "text";
+        var codeBody = macro.SelectSingleNode(".//*[local-name()='plain-text-body']")?.InnerText ?? "";
         
         var codeBlock = macro.OwnerDocument.CreateElement("pre");
         var code = macro.OwnerDocument.CreateElement("code");
@@ -120,8 +137,8 @@ public class MarkdownConverter : IMarkdownConverter
 
     private static void ProcessInfoMacro(HtmlNode macro, string type)
     {
-        var title = macro.SelectSingleNode(".//ac:parameter[@ac:name='title']")?.InnerText ?? "";
-        var body = macro.SelectSingleNode(".//ac:rich-text-body")?.InnerHtml ?? "";
+        var title = macro.SelectSingleNode(".//*[local-name()='parameter' and @*[local-name()='name']='title']")?.InnerText ?? "";
+        var body = macro.SelectSingleNode(".//*[local-name()='rich-text-body']")?.InnerHtml ?? "";
         
         var blockquote = macro.OwnerDocument.CreateElement("blockquote");
         var content = string.IsNullOrEmpty(title) 
@@ -152,7 +169,10 @@ public class MarkdownConverter : IMarkdownConverter
 
     private static void ProcessIncludeMacro(HtmlNode macro)
     {
-        var pageTitle = macro.SelectSingleNode(".//ac:parameter[@ac:name='']")?.InnerText ?? "";
+        // Try to get the page parameter - common parameter names for include macro
+        var pageTitle = macro.SelectSingleNode(".//*[local-name()='parameter' and @*[local-name()='name']='page']")?.InnerText ?? 
+                       macro.SelectSingleNode(".//*[local-name()='parameter' and @*[local-name()='name']='pageTitle']")?.InnerText ?? 
+                       macro.SelectSingleNode(".//*[local-name()='parameter'][1]")?.InnerText ?? "Unknown Page";
         var includeDiv = macro.OwnerDocument.CreateElement("div");
         includeDiv.SetAttributeValue("class", "include-content");
         includeDiv.InnerHtml = $"*Included content from: {pageTitle}*";
@@ -162,7 +182,7 @@ public class MarkdownConverter : IMarkdownConverter
 
     private static void ProcessExcerptMacro(HtmlNode macro)
     {
-        var body = macro.SelectSingleNode(".//ac:rich-text-body")?.InnerHtml ?? "";
+        var body = macro.SelectSingleNode(".//*[local-name()='rich-text-body']")?.InnerHtml ?? "";
         var excerptDiv = macro.OwnerDocument.CreateElement("div");
         excerptDiv.SetAttributeValue("class", "excerpt");
         excerptDiv.InnerHtml = body;
@@ -172,39 +192,66 @@ public class MarkdownConverter : IMarkdownConverter
 
     private static void ProcessGenericMacro(HtmlNode macro, string macroName)
     {
-        var parameters = macro.SelectNodes(".//ac:parameter");
-        var paramString = parameters?.Select(p => 
-            $"{p.GetAttributeValue("ac:name", "param")}: {p.InnerText}")
-            .Aggregate((a, b) => $"{a}, {b}") ?? "";
-        
-        var macroDiv = macro.OwnerDocument.CreateElement("div");
-        macroDiv.SetAttributeValue("class", $"confluence-macro-{macroName}");
-        macroDiv.InnerHtml = $"*Confluence Macro: {macroName}*" + 
-                           (string.IsNullOrEmpty(paramString) ? "" : $" ({paramString})");
-        
-        macro.ParentNode.ReplaceChild(macroDiv, macro);
+        try
+        {
+            var parameters = macro.SelectNodes(".//*[local-name()='parameter']");
+            var paramString = parameters?.Select(p => 
+                $"{p.GetAttributeValue("ac:name", "param")}: {p.InnerText}")
+                .Aggregate((a, b) => $"{a}, {b}") ?? "";
+            
+            var macroDiv = macro.OwnerDocument.CreateElement("div");
+            macroDiv.SetAttributeValue("class", $"confluence-macro-{macroName}");
+            macroDiv.InnerHtml = $"*Confluence Macro: {macroName}*" + 
+                               (string.IsNullOrEmpty(paramString) ? "" : $" ({paramString})");
+            
+            macro.ParentNode.ReplaceChild(macroDiv, macro);
+        }
+        catch (Exception)
+        {
+            // If XPath fails, create a simple replacement
+            var macroDiv = macro.OwnerDocument.CreateElement("div");
+            macroDiv.SetAttributeValue("class", $"confluence-macro-{macroName}");
+            macroDiv.InnerHtml = $"*Confluence Macro: {macroName}*";
+            
+            macro.ParentNode.ReplaceChild(macroDiv, macro);
+        }
     }
 
     private static void ProcessTables(HtmlDocument doc)
     {
-        var tables = doc.DocumentNode.SelectNodes("//table");
-        if (tables == null) return;
-
-        foreach (var table in tables)
+        try
         {
-            table.SetAttributeValue("class", "confluence-table");
-            
-            var headers = table.SelectNodes(".//th");
-            var rows = table.SelectNodes(".//tr");
-            
-            if (headers != null && rows != null && rows.Count > 1)
+            var tables = doc.DocumentNode.SelectNodes("//table");
+            if (tables == null) return;
+
+            foreach (var table in tables)
             {
-                var headerRow = rows.First(r => r.SelectNodes(".//th") != null);
-                if (headerRow != null)
+                try
                 {
-                    headerRow.SetAttributeValue("class", "table-header");
+                    table.SetAttributeValue("class", "confluence-table");
+                    
+                    var headers = table.SelectNodes(".//th");
+                    var rows = table.SelectNodes(".//tr");
+                    
+                    if (headers != null && rows != null && rows.Count > 1)
+                    {
+                        var headerRow = rows.FirstOrDefault(r => r.SelectNodes(".//th") != null);
+                        if (headerRow != null)
+                        {
+                            headerRow.SetAttributeValue("class", "table-header");
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // If processing fails, just set basic class and continue
+                    table.SetAttributeValue("class", "confluence-table");
                 }
             }
+        }
+        catch (Exception)
+        {
+            // If table processing fails entirely, just continue
         }
     }
 

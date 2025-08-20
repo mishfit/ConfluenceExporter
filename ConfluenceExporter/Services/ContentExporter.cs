@@ -253,7 +253,7 @@ type: {page.Type}
 status: {page.Status}
 space: {page.Space?.Name ?? ""}
 version: {page.Version?.Number ?? 0}
-last_modified: {page.Version?.When:yyyy-MM-dd HH:mm:ss}
+last_modified: {page.Version?.CreatedAt:yyyy-MM-dd HH:mm:ss}
 ---";
     }
 
@@ -262,7 +262,7 @@ last_modified: {page.Version?.When:yyyy-MM-dd HH:mm:ss}
         return $@"    <meta name=""confluence-page-id"" content=""{page.Id}"">
     <meta name=""confluence-space"" content=""{page.Space?.Name ?? ""}"">
     <meta name=""confluence-version"" content=""{page.Version?.Number ?? 0}"">
-    <meta name=""last-modified"" content=""{page.Version?.When:yyyy-MM-dd HH:mm:ss}"">";
+    <meta name=""last-modified"" content=""{page.Version?.CreatedAt:yyyy-MM-dd HH:mm:ss}"">";
     }
 
     private static List<string> ExtractImageUrls(string htmlContent)

@@ -19,8 +19,17 @@ public class ConfluenceSpace
     [JsonProperty("status")]
     public string Status { get; set; } = string.Empty;
 
+    [JsonProperty("authorId")]
+    public string? AuthorId { get; set; }
+
+    [JsonProperty("createdAt")]
+    public DateTime? CreatedAt { get; set; }
+
+    [JsonProperty("homepageId")]
+    public string? HomepageId { get; set; }
+
     [JsonProperty("_expandable")]
-    public ConfluenceExpandable Expandable { get; set; } = new();
+    public ConfluenceExpandable? Expandable { get; set; }
 }
 
 public class ConfluencePage
@@ -37,14 +46,17 @@ public class ConfluencePage
     [JsonProperty("title")]
     public string Title { get; set; } = string.Empty;
 
+    [JsonProperty("spaceId")]
+    public string? SpaceId { get; set; }
+
     [JsonProperty("space")]
     public ConfluenceSpace? Space { get; set; }
 
     [JsonProperty("body")]
-    public ConfluenceBody? Body { get; set; }
+    public ConfluenceV2Body? Body { get; set; }
 
     [JsonProperty("version")]
-    public ConfluenceVersion? Version { get; set; }
+    public ConfluenceV2Version? Version { get; set; }
 
     [JsonProperty("ancestors")]
     public List<ConfluencePage> Ancestors { get; set; } = new();
@@ -52,8 +64,23 @@ public class ConfluencePage
     [JsonProperty("children")]
     public ConfluenceChildren? Children { get; set; }
 
+    [JsonProperty("parentId")]
+    public string? ParentId { get; set; }
+
+    [JsonProperty("parentType")]
+    public string? ParentType { get; set; }
+
+    [JsonProperty("position")]
+    public int? Position { get; set; }
+
+    [JsonProperty("authorId")]
+    public string? AuthorId { get; set; }
+
+    [JsonProperty("createdAt")]
+    public DateTime? CreatedAt { get; set; }
+
     [JsonProperty("_expandable")]
-    public ConfluenceExpandable Expandable { get; set; } = new();
+    public ConfluenceExpandable? Expandable { get; set; }
 }
 
 public class ConfluenceBody
@@ -186,4 +213,94 @@ public class ConfluenceSearchResult
 
     [JsonProperty("_links")]
     public ConfluenceLinks? Links { get; set; }
+}
+
+public class ConfluenceSpacesResult
+{
+    [JsonProperty("results")]
+    public List<ConfluenceSpace> Results { get; set; } = new();
+
+    [JsonProperty("_links")]
+    public ConfluenceV2Links? Links { get; set; }
+}
+
+public class ConfluenceV2Links
+{
+    [JsonProperty("next")]
+    public string? Next { get; set; }
+}
+
+public class ConfluenceV2PagesResult
+{
+    [JsonProperty("results")]
+    public List<ConfluencePage> Results { get; set; } = new();
+
+    [JsonProperty("_links")]
+    public ConfluenceV2Links? Links { get; set; }
+}
+
+public class ConfluenceV2ChildrenResult
+{
+    [JsonProperty("results")]
+    public List<ConfluenceChild> Results { get; set; } = new();
+
+    [JsonProperty("_links")]
+    public ConfluenceV2Links? Links { get; set; }
+}
+
+public class ConfluenceChild
+{
+    [JsonProperty("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonProperty("status")]
+    public string Status { get; set; } = string.Empty;
+
+    [JsonProperty("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonProperty("type")]
+    public string Type { get; set; } = string.Empty;
+
+    [JsonProperty("spaceId")]
+    public string SpaceId { get; set; } = string.Empty;
+
+    [JsonProperty("childPosition")]
+    public int? ChildPosition { get; set; }
+}
+
+public class ConfluenceV2Body
+{
+    [JsonProperty("storage")]
+    public ConfluenceStorage? Storage { get; set; }
+
+    [JsonProperty("atlas_doc_format")]
+    public ConfluenceAtlasDoc? AtlasDoc { get; set; }
+}
+
+public class ConfluenceAtlasDoc
+{
+    [JsonProperty("value")]
+    public string Value { get; set; } = string.Empty;
+
+    [JsonProperty("representation")]
+    public string Representation { get; set; } = string.Empty;
+}
+
+public class ConfluenceV2Version
+{
+    [JsonProperty("number")]
+    public int Number { get; set; }
+
+    [JsonProperty("createdAt")]
+    public DateTime CreatedAt { get; set; }
+
+    [JsonProperty("message")]
+    public string? Message { get; set; }
+
+    [JsonProperty("minorEdit")]
+    public bool? MinorEdit { get; set; }
+
+    [JsonProperty("authorId")]
+    public string? AuthorId { get; set; }
 }

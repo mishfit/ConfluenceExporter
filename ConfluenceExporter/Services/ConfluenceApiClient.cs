@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
+using System.Linq;
+using System.Web;
 using ConfluenceExporter.Configuration;
 using ConfluenceExporter.Models;
 using Microsoft.Extensions.Logging;
@@ -51,54 +53,59 @@ public class ConfluenceApiClient : IConfluenceApiClient, IDisposable
         _logger.LogInformation("Fetching all spaces");
         
         var spaces = new List<ConfluenceSpace>();
-        var start = 0;
+        string? cursor = null;
         const int limit = 50;
         
         while (true)
         {
-            var url = $"/rest/api/space?start={start}&limit={limit}&expand=permissions";
+            var url = $"/wiki/api/v2/spaces?limit={limit}";
+            if (!string.IsNullOrEmpty(cursor))
+                url += $"&cursor={cursor}";
+                
             var response = await _httpClient.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
             
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = JsonConvert.DeserializeObject<ConfluenceSearchResult>(content);
+            var result = JsonConvert.DeserializeObject<ConfluenceSpacesResult>(content);
             
             if (result?.Results == null || result.Results.Count == 0)
                 break;
                 
-            spaces.AddRange(result.Results.Select(r => new ConfluenceSpace
-            {
-                Id = r.Id,
-                Key = r.Space?.Key ?? "",
-                Name = r.Title,
-                Type = r.Type,
-                Status = r.Status
-            }));
+            spaces.AddRange(result.Results);
             
-            if (result.Results.Count < limit)
+            if (result.Results.Count < limit || result.Links?.Next == null)
                 break;
                 
-            start += limit;
+            // Extract cursor from next URL if present
+            cursor = ExtractCursorFromUrl(result.Links.Next);
         }
         
         _logger.LogInformation("Found {Count} spaces", spaces.Count);
         return spaces;
     }
 
+    private static string? ExtractCursorFromUrl(string? nextUrl)
+    {
+        if (string.IsNullOrEmpty(nextUrl))
+            return null;
+            
+        var uri = new Uri(nextUrl, UriKind.RelativeOrAbsolute);
+        var query = uri.IsAbsoluteUri ? uri.Query : nextUrl.Contains('?') ? nextUrl.Substring(nextUrl.IndexOf('?')) : "";
+        
+        if (string.IsNullOrEmpty(query))
+            return null;
+            
+        var queryParams = System.Web.HttpUtility.ParseQueryString(query);
+        return queryParams["cursor"];
+    }
+
     public async Task<ConfluenceSpace?> GetSpaceAsync(string spaceKey, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Fetching space: {SpaceKey}", spaceKey);
         
-        var url = $"/rest/api/space/{spaceKey}?expand=permissions";
-        var response = await _httpClient.GetAsync(url, cancellationToken);
-        
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            return null;
-            
-        response.EnsureSuccessStatusCode();
-        
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-        var space = JsonConvert.DeserializeObject<ConfluenceSpace>(content);
+        // First, get all spaces and find the one with matching key
+        var spaces = await GetSpacesAsync(cancellationToken);
+        var space = spaces.FirstOrDefault(s => s.Key.Equals(spaceKey, StringComparison.OrdinalIgnoreCase));
         
         return space;
     }
@@ -107,28 +114,39 @@ public class ConfluenceApiClient : IConfluenceApiClient, IDisposable
     {
         _logger.LogInformation("Fetching pages for space: {SpaceKey}", spaceKey);
         
+        // First get the space to get its ID
+        var space = await GetSpaceAsync(spaceKey, cancellationToken);
+        if (space == null)
+        {
+            _logger.LogWarning("Space {SpaceKey} not found", spaceKey);
+            return new List<ConfluencePage>();
+        }
+        
         var pages = new List<ConfluencePage>();
-        var start = 0;
+        string? cursor = null;
         const int limit = 50;
         
         while (true)
         {
-            var url = $"/rest/api/space/{spaceKey}/content?start={start}&limit={limit}&expand=body.storage,version,space,ancestors";
+            var url = $"/wiki/api/v2/pages?space-id={space.Id}&limit={limit}&body-format=storage";
+            if (!string.IsNullOrEmpty(cursor))
+                url += $"&cursor={cursor}";
+                
             var response = await _httpClient.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
             
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = JsonConvert.DeserializeObject<ConfluenceSearchResult>(content);
+            var result = JsonConvert.DeserializeObject<ConfluenceV2PagesResult>(content);
             
             if (result?.Results == null || result.Results.Count == 0)
                 break;
                 
             pages.AddRange(result.Results);
             
-            if (result.Results.Count < limit)
+            if (result.Results.Count < limit || result.Links?.Next == null)
                 break;
                 
-            start += limit;
+            cursor = ExtractCursorFromUrl(result.Links.Next);
             
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
         }
@@ -141,7 +159,7 @@ public class ConfluenceApiClient : IConfluenceApiClient, IDisposable
     {
         _logger.LogInformation("Fetching page: {PageId}", pageId);
         
-        var url = $"/rest/api/content/{pageId}?expand=body.storage,version,space,ancestors,children.page";
+        var url = $"/wiki/api/v2/pages/{pageId}?body-format=storage&include-labels=false";
         var response = await _httpClient.GetAsync(url, cancellationToken);
         
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -160,27 +178,39 @@ public class ConfluenceApiClient : IConfluenceApiClient, IDisposable
         _logger.LogInformation("Fetching children for page: {PageId}", pageId);
         
         var children = new List<ConfluencePage>();
-        var start = 0;
+        string? cursor = null;
         const int limit = 50;
         
         while (true)
         {
-            var url = $"/rest/api/content/{pageId}/child/page?start={start}&limit={limit}&expand=body.storage,version,space,ancestors";
+            var url = $"/wiki/api/v2/pages/{pageId}/children?limit={limit}";
+            if (!string.IsNullOrEmpty(cursor))
+                url += $"&cursor={cursor}";
+                
             var response = await _httpClient.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
             
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = JsonConvert.DeserializeObject<ConfluenceSearchResult>(content);
+            var result = JsonConvert.DeserializeObject<ConfluenceV2ChildrenResult>(content);
             
             if (result?.Results == null || result.Results.Count == 0)
                 break;
-                
-            children.AddRange(result.Results);
             
-            if (result.Results.Count < limit)
+            // Convert ConfluenceChild objects to ConfluencePage objects
+            // We'll need to fetch full page data for each child
+            foreach (var child in result.Results.Where(c => c.Type == "page"))
+            {
+                var fullPage = await GetPageAsync(child.Id, cancellationToken);
+                if (fullPage != null)
+                {
+                    children.Add(fullPage);
+                }
+            }
+            
+            if (result.Results.Count < limit || result.Links?.Next == null)
                 break;
                 
-            start += limit;
+            cursor = ExtractCursorFromUrl(result.Links.Next);
             
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
         }

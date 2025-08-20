@@ -19,7 +19,9 @@
       "Bash(dotnet build:*)",
       "Bash(dotnet restore:*)",
       "Bash(dotnet remove:*)",
-      "Bash(dotnet run:*)"
+      "Bash(dotnet run:*)",
+      "WebFetch(domain:developer.atlassian.com)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
